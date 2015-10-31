@@ -8,61 +8,86 @@
 
 (defonce channel-list (atom [])) ;; The list of open websockets
 (defonce status (atom {}))       ;; The actual status, once read from the json
-(defonce tokens (atom ["antani"]))
+(defonce tokens (atom []))       ;; List of master tokens
 
-(defn log-append
-  "Append a new message to log"
-  [filename entry]
-  (with-open [w (io/writer filename :append true)]
+
+(defn log-append!
+  "Append a new message to the log"
+  [entry]
+  (with-open [w (io/writer (str fs/*cwd* "/data/status.log") :append true)]
     (binding [*out* w] ;; Redirecting stdout to file
       (-> entry :raw println))))
 
-(defn read-json
-  "Retrieves the json from the data folder, returns a map"
-  []
-  (-> (str fs/*cwd* "/data/status.json")
-      slurp
-      (parse-string true)))
 
-(defn write-json
+(defn read-json
+  "Reads the json from the data folder, returns a clojure data structure"
+  [filename]
+  (let [f (str fs/*cwd* "/data/" filename ".json")]
+    (when (not (fs/exists? f))
+      (spit f ""))
+    (-> (slurp f)
+        (parse-string true))))
+
+
+(defn write-status-json!
+  "Writes the status atom into the json status file"
   []
   (->> (generate-string @status)
        (spit (str fs/*cwd* "/data/status.json"))))
 
+
 (defn broadcast!
-  "Broadcasts some json data to all opened websockets"
+  "Broadcasts some json data to all subscribed websockets"
   [new-data]
   (doseq [channel @channel-list]
     (send! channel new-data false)))
 
-(defn async-handler [ring-request]
-  ;; Unified API for WebSocket and HTTP long polling/streaming
+
+(defn update-handler
+  "Handle client messages, only when authenticated"
+  [data]
+  (let [data-map (parse-string data true)
+        key (:key data-map)
+        new-message (dissoc data-map :key)]
+    ;; Because authentication
+    (if (and key (some #{key} @tokens))
+      (do
+        (println "New update!")
+        (broadcast! (generate-string new-message))
+        ;; TODO: append to log file
+        (swap! status merge new-message)
+        (write-status-json!))
+      (println "Not authenticated!"))))
+
+
+(defn root-handler [ring-request]
+  "Handles the websocket requests, with fallback on HTTP GET"
   (let [big-json (generate-string @status)]
-    (with-channel ring-request channel  ; Get an async channel from ring request
-      ;; Some client tries to update - make sure it has the right token
-      (on-receive channel (fn [data]
-                            (let [data-map (parse-string data true)
-                                  key (:key data-map)
-                                  new-message (dissoc data-map :key)]
-                              ;; Because authentication
-                              (when (and key (some #{key} @tokens))
-                                (println "New update!")
-                                (broadcast! (generate-string new-message))
-                                ;; todo: log
-                                (swap! status merge data-map)
-                                (write-json)))))
-      (if (websocket? channel)        ; Websocket case - we track every channel
+    ;; Get an async channel from ring request
+    (with-channel ring-request channel
+      (if (websocket? channel)
+        ;; Websocket case - we track every channel, to broadcast new messages
         (do
           (println "New client connected.")
           (swap! channel-list conj channel)
           (send! channel big-json false))
+        ;; If HTTP just send down the json
         (send! channel {:status  200
                         :headers {"Content-Type" "application/json"}
-                        :body    big-json})))))
+                        :body    big-json}))
+      (on-receive channel update-handler)
+      ;; On channel close just remove it from the subscribed channels
+      (on-close channel (fn [status]
+                          (println "Channel closed.")
+                          (reset! channel-list (remove #(= % channel)
+                                                       @channel-list)))))))
+
 
 (defn -main
-  "Main"
+  "Load server data, start server."
   [& args]
-  (reset! status (read-json))
+  ;; Read json from file
+  (reset! status (read-json "status"))
+  (reset! tokens (read-json "tokens"))
   (println "Starting server on 8080...")
-  (run-server async-handler {:port 8080}))
+  (run-server root-handler {:port 8080}))
