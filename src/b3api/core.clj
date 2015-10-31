@@ -9,12 +9,12 @@
 
 
 (defonce channel-list (atom [])) ;; The list of open websockets
-(defonce status (atom {}))       ;; The actual status, once read from the json
-(defonce tokens (atom []))       ;; List of master tokens
+(defonce status       (atom {})) ;; The actual status, once read from the json
+(defonce tokens       (atom [])) ;; List of master tokens
 
 
 (defn log-append!
-  "Append a new message to the log"
+  "Append a new message to the log file"
   [entry]
   (with-open [w (io/writer (str fs/*cwd* "/data/status.log") :append true)]
     (binding [*out* w] ;; Redirecting stdout to file
@@ -48,8 +48,8 @@
 (defn update-status
   "Handle client messages, only when authenticated"
   [data]
-  (let [data-map (parse-string data true)
-        key (:key data-map)
+  (let [data-map    (parse-string data true)
+        key         (:key data-map)
         new-message (dissoc data-map :key)]
     ;; Because authentication
     (if (and key (some #{key} @tokens))
@@ -70,8 +70,9 @@
     (update-status data)))
 
 
-(defn root-handler [ring-request]
+(defn root-handler
   "Handles the websocket requests, with fallback on HTTP GET"
+  [ring-request]
   (let [big-json (generate-string @status)]
     ;; Get an async channel from ring request
     (with-channel ring-request channel
