@@ -16,9 +16,25 @@ FIXME: explanation
 
 FIXME: listing of options this app accepts.
 
-## Examples
+## Testing
 
-...
+### Websockets
+
+```python
+from websocket import create_connection
+ws = create_connection("ws://localhost:8080")
+ws.send('{"hello":"world", "key":<YOUR_TOKEN_HERE>}')
+print(ws.recv())
+ws.close()
+```
+
+### cURL
+```bash
+curl localhost:8080 # GET
+curl -H "Content-Type: application/json" -X POST \
+  -d '{"hello":"world","key":<YOUR_TOKEN_HERE>}' http://localhost:8080 # POST
+
+```
 
 ### Bugs
 

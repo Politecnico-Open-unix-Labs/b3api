@@ -2,6 +2,8 @@
   (:require [org.httpkit.server :refer :all]
             [me.raynes.fs :as fs]
             [clojure.java.io :as io]
+            [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
+            [compojure.core :refer [defroutes GET POST]]
             [cheshire.core :refer [generate-string parse-string]])
   (:gen-class))
 
@@ -43,7 +45,7 @@
     (send! channel new-data false)))
 
 
-(defn update-handler
+(defn update-status
   "Handle client messages, only when authenticated"
   [data]
   (let [data-map (parse-string data true)
@@ -58,6 +60,14 @@
         (swap! status merge new-message)
         (write-status-json!))
       (println "Not authenticated!"))))
+
+
+(defn update-handler
+  "Handle POST client messages"
+  [ring-request]
+  (let [data (slurp (:body ring-request))] ;; slurp because it is a stream
+    (println data)
+    (update-status data)))
 
 
 (defn root-handler [ring-request]
@@ -75,7 +85,7 @@
         (send! channel {:status  200
                         :headers {"Content-Type" "application/json"}
                         :body    big-json}))
-      (on-receive channel update-handler)
+      (on-receive channel update-status)
       ;; On channel close just remove it from the subscribed channels
       (on-close channel (fn [status]
                           (println "Channel closed.")
@@ -83,11 +93,20 @@
                                                        @channel-list)))))))
 
 
+(defroutes all-routes
+  (GET  "/" [] root-handler)     ;; Websocket + GET
+  (POST "/" [] update-handler))  ;; POST for one-time updates or fallback
+  ;; TODO: /hist
+
+
 (defn -main
   "Load server data, start server."
   [& args]
-  ;; Read json from file
+  ;; Read jsons from file
   (reset! status (read-json "status"))
   (reset! tokens (read-json "tokens"))
   (println "Starting server on 8080...")
-  (run-server root-handler {:port 8080}))
+  ;; wrap-defaults is middleware magic: takes requests and routes them
+  (run-server (wrap-defaults all-routes api-defaults)
+              {:ip "localhost"
+               :port 8080}))

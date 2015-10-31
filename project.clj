@@ -6,6 +6,8 @@
   :dependencies [[org.clojure/clojure "1.7.0"]
                  [cheshire "5.5.0"]
                  [me.raynes/fs "1.4.6"]
+                 [compojure "1.4.0"]
+                 [ring/ring-defaults "0.1.5"]
                  [http-kit "2.1.18"]]
   :main ^:skip-aot b3api.core
   :plugins [[lein-bin "0.3.5"]]
