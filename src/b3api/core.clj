@@ -1,5 +1,6 @@
 (ns b3api.core
-  (:require [org.httpkit.server :refer :all]
+  (:require [clojure.tools.logging :as log]
+            [org.httpkit.server :refer :all]
             [me.raynes.fs :as fs]
             [clojure.java.io :as io]
             [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
@@ -18,7 +19,7 @@
   [entry]
   (with-open [w (io/writer (str fs/*cwd* "/data/status.log") :append true)]
     (binding [*out* w] ;; Redirecting stdout to file
-      (-> entry :raw println))))
+      (-> entry :raw log/info))))
 
 
 (defn read-json
@@ -54,19 +55,19 @@
     ;; Because authentication
     (if (and key (some #{key} @tokens))
       (do
-        (println "New update!")
+        (log/info "New update!")
         (broadcast! (generate-string new-message))
         ;; TODO: append to log file
         (swap! status merge new-message)
         (write-status-json!))
-      (println "Not authenticated!"))))
+      (log/info "Not authenticated!"))))
 
 
 (defn update-handler
   "Handle POST client messages"
   [ring-request]
   (let [data (slurp (:body ring-request))] ;; slurp because it is a stream
-    (println data)
+    (log/info data)
     (update-status data)))
 
 
@@ -79,7 +80,7 @@
       (if (websocket? channel)
         ;; Websocket case - we track every channel, to broadcast new messages
         (do
-          (println "New client connected.")
+          (log/info "New client connected.")
           (swap! channel-list conj channel)
           (send! channel big-json false))
         ;; If HTTP just send down the json
@@ -89,7 +90,7 @@
       (on-receive channel update-status)
       ;; On channel close just remove it from the subscribed channels
       (on-close channel (fn [status]
-                          (println "Channel closed.")
+                          (log/info "Channel closed.")
                           (reset! channel-list (remove #(= % channel)
                                                        @channel-list)))))))
 
@@ -97,7 +98,7 @@
 (defroutes all-routes
   (GET  "/" [] root-handler)     ;; Websocket + GET
   (POST "/" [] update-handler))  ;; POST for one-time updates or fallback
-  ;; TODO: /hist
+;; TODO: /hist
 
 
 (defn -main
@@ -106,7 +107,7 @@
   ;; Read jsons from file
   (reset! status (read-json "status"))
   (reset! tokens (read-json "tokens"))
-  (println "Starting server on 8080...")
+  (log/info "Starting server on 8080...")
   ;; wrap-defaults is middleware magic: takes requests and routes them
   (run-server (wrap-defaults all-routes api-defaults)
               {:ip "localhost"
