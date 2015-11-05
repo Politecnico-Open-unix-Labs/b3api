@@ -53,14 +53,18 @@
         key         (:key data-map)
         new-message (dissoc data-map :key)]
     ;; Because authentication
-    (if (and key (some #{key} @tokens))
+    (if (and key
+             (some #{key} @tokens))
       (do
         (log/info "New update!")
         (broadcast! (generate-string new-message))
+
         ;; TODO: append to log file
         (swap! status merge new-message)
         (write-status-json!))
-      (log/info "Not authenticated!"))))
+
+      (when-not (= data-map {}) ;; Ignore empty maps sent as ping
+        (log/warn "Not authenticated!")))))
 
 
 (defn update-handler
