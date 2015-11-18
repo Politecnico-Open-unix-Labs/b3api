@@ -3,7 +3,7 @@
 Server side implementation of a super-set of the [SapceAPI](http://spaceapi.net/),
 keeps the informations about the hackerspace status and send them to the clients.
 
-TODO: better explaination
+TODO: better explanation
 
 
 ## Details
