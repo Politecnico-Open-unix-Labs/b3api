@@ -1,6 +1,6 @@
 # b3api
 
-Server side implementation of a super-set of the [SapceAPI](http://spaceapi.net/),
+Server side implementation of a super-set of the [SpaceAPI](http://spaceapi.net/),
 keeps the informations about the hackerspace status and send them to the clients.
 
 TODO: better explanation
