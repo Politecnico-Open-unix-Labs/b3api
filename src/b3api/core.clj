@@ -114,5 +114,5 @@
   (log/info "Starting server on 8080...")
   ;; wrap-defaults is middleware magic: takes requests and routes them
   (run-server (wrap-defaults all-routes api-defaults)
-              {:ip "localhost"
+              {:ip "0.0.0.0"
                :port 8080}))
