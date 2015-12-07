@@ -12,7 +12,7 @@
 (defonce channel-list (atom [])) ;; The list of open websockets
 (defonce status       (atom {})) ;; The actual status, once read from the json
 (defonce tokens       (atom [])) ;; List of master tokens
-
+(defonce o            (Object.)) ;; The global lock object
 
 (defn log-append!
   "Append a new message to the log file"
@@ -35,8 +35,9 @@
 (defn write-status-json!
   "Writes the status atom into the json status file"
   []
-  (->> (generate-string @status)
-       (spit (str fs/*cwd* "/data/status.json"))))
+  (locking o
+    (->> (generate-string @status)
+         (spit (str fs/*cwd* "/data/status.json")))))
 
 
 (defn broadcast!
