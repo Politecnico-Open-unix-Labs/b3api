@@ -10,9 +10,11 @@
                  [compojure "1.4.0"]
                  [ring/ring-defaults "0.1.5"]
                  [com.taoensso/encore "2.27.0"]
-                 [http-kit "2.1.18"]]
+                 [com.taoensso/timbre "4.1.4"]
+                 [http-kit "2.1.19"]]
   :main ^:skip-aot b3api.core
-  :plugins [[lein-bin "0.3.5"]]
+  :plugins [[lein-bin "0.3.5"]
+            [lein-ancient "0.6.8"]]
   :bin {:name "b3api"}
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}})

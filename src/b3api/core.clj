@@ -1,6 +1,8 @@
 (ns b3api.core
-  (:require [clojure.tools.logging :as log]
-            [org.httpkit.server :refer :all]
+  (:require [org.httpkit.server :refer :all]
+            [taoensso.timbre :as timbre
+             :refer (log trace debug info warn error fatal report spy)]
+            [taoensso.timbre.appenders.core :as appenders]
             [me.raynes.fs :as fs]
             [clojure.java.io :as io]
             [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
@@ -16,6 +18,34 @@
 (defonce o            (Object.)) ;; The global lock object
 
 
+;; Logging config
+(def log-file-name  "./data/b3api.log")
+(def hist-file-name "./data/history.log")
+;; One standard logger, and one for history
+;; HACK: REPORT level (the higher) is reserved for history, don't use for other.
+;; It gets printed only in the history logger, while ignored in the others.
+(timbre/merge-config!
+ {:appenders
+  {:spit    (assoc
+              (appenders/spit-appender {:fname log-file-name})
+              :fn (fn [data]
+                    (when-not (= (:level data) :report)
+                      ((:fn (appenders/spit-appender {:fname log-file-name}))
+                       data))))
+   :println (assoc
+              (appenders/println-appender)
+              :fn (fn [data]
+                    (when-not (= (:level data) :report)
+                      ((:fn (appenders/println-appender)) data))))
+   :history (assoc
+              (appenders/spit-appender {:fname hist-file-name})
+              :min-level :report)}})
+;; No colors plz, and better (sortable!) timestamps
+(timbre/merge-config! {:output-fn (partial timbre/default-output-fn
+                                           {:stacktrace-fonts {}})
+                       :timestamp-opts {:pattern "yyyy-MM-dd HH:mm:ss"}})
+
+
 (defn deep-merge*
   "A better merge function. Semantics: deep-merges until there's an empty map.
   TODO: remove keys having an empty map as value."
@@ -27,14 +57,6 @@
     (if (every? map? maps)
       (apply merge-with f maps)
       (last maps))))
-
-
-(defn log-append!
-  "Append a new message to the log file"
-  [entry]
-  (with-open [w (io/writer (str fs/*cwd* "/data/status.log") :append true)]
-    (binding [*out* w] ;; Redirecting stdout to file
-      (-> entry :raw log/info))))
 
 
 (defn read-json
@@ -78,21 +100,23 @@
         old-data  (get-in @status auth-path {})
         new-msg   (update-in* {} auth-path #(do %& new-data))]
        (do
-         (log/info (str "New update: " (generate-string new-msg)))
+         (info "New update: " new-msg)
          ;; Broadcasting only the authorized part
          (broadcast! (generate-string new-msg))
-         ;; TODO: append to log file
+         ;; Append to history log:
+         (report new-msg)
+         ;; TODO: append to a in-memory circular-buffer with the last N history logs
          ;; Deep merging the authorized branch of the maps tree, and writing to file
          (reset-in! status auth-path (deep-merge* old-data new-data))
          (write-status-json!))
-       (log/warn "Not authenticated!")))))
+       (warn "Not authenticated!")))))
 
 
 (defn update-handler
   "Handle POST client messages"
   [ring-request]
   (let [data (slurp (:body ring-request))] ;; slurp because it is a stream
-    (log/info data)
+    (info data)
     (update-status data)))
 
 
@@ -105,8 +129,8 @@
       (if (websocket? channel)
         ;; Websocket case - we track every channel, to broadcast new messages
         (do
-          (log/info "New client connected.")
           (swap! channel-list conj channel)
+          (info "New websocket client. #connected:" (count @channel-list))
           (send! channel big-json false))
         ;; If HTTP just send down the json
         (send! channel {:status  200
@@ -114,10 +138,11 @@
                         :body    big-json}))
       (on-receive channel update-status)
       ;; On channel close just remove it from the subscribed channels
-      (on-close channel (fn [status]
-                          (log/info "Channel closed.")
-                          (reset! channel-list (remove #(= % channel)
-                                                       @channel-list)))))))
+      (on-close channel
+                (fn [status]
+                  (reset! channel-list (remove #(= % channel)
+                                               @channel-list))
+                  (info "Client disconnected. #connected:" (count @channel-list)))))))
 
 
 (defroutes all-routes
@@ -130,9 +155,10 @@
   "Load server data, start server."
   [& args]
   ;; Read jsons from file
+  (info "Reading tokens and status dump from disk...")
   (reset! status (read-json "status"))
   (reset! tokens (read-json "tokens"))
-  (log/info "Starting server on 8080...")
+  (info "Starting server on 8080...")
   ;; wrap-defaults is middleware magic: takes requests and routes them
   (run-server (wrap-defaults all-routes api-defaults)
               {:ip "0.0.0.0"
