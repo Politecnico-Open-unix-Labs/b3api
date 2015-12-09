@@ -5,14 +5,29 @@
             [clojure.java.io :as io]
             [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
             [compojure.core :refer [defroutes GET POST]]
+            [taoensso.encore :as enc :refer [if-lets update-in* reset-in!]]
             [cheshire.core :refer [generate-string parse-string]])
   (:gen-class))
 
 
 (defonce channel-list (atom [])) ;; The list of open websockets
 (defonce status       (atom {})) ;; The actual status, once read from the json
-(defonce tokens       (atom [])) ;; List of master tokens
+(defonce tokens       (atom {})) ;; Map of tokens:authorized-path
 (defonce o            (Object.)) ;; The global lock object
+
+
+(defn deep-merge*
+  "A better merge function. Semantics: deep-merges until there's an empty map.
+  TODO: remove keys having an empty map as value."
+  [& maps]
+  (let [f (fn [old new]
+            (if (and (map? old) (map? new) (not (empty? new)))
+              (merge-with deep-merge* old new)
+              new))]
+    (if (every? map? maps)
+      (apply merge-with f maps)
+      (last maps))))
+
 
 (defn log-append!
   "Append a new message to the log file"
@@ -50,22 +65,27 @@
 (defn update-status
   "Handle client messages, only when authenticated"
   [data]
-  (let [data-map    (parse-string data true)
-        key         (:key data-map)
-        new-message (dissoc data-map :key)]
-    ;; Because authentication
-    (if (and key
-             (some #{key} @tokens))
-      (do
-        (log/info "New update!")
-        (broadcast! (generate-string new-message))
-
-        ;; TODO: append to log file
-        (swap! status merge new-message)
-        (write-status-json!))
-
-      (when-not (= data-map {}) ;; Ignore empty maps sent as ping
-        (log/warn "Not authenticated!")))))
+  (let [data-map  (parse-string data true)]
+    (when-not (empty? data-map) ;; Ignoring heartbeats - empty maps
+      ;; If any of the let bindings evals to nil -> message is not authenticated
+      ;; Checking that:
+      (if-lets
+       [key       (keyword (:key data-map)) ;; 1. key is provided
+        valid?    (contains? @tokens key)   ;; 2. key is valid
+        auth-path (map keyword (get @tokens key))
+        new-data  (get-in (dissoc data-map :key)
+                          auth-path)        ;; 3. new is on the auth path of the key
+        old-data  (get-in @status auth-path {})
+        new-msg   (update-in* {} auth-path #(do %& new-data))]
+       (do
+         (log/info (str "New update: " (generate-string new-msg)))
+         ;; Broadcasting only the authorized part
+         (broadcast! (generate-string new-msg))
+         ;; TODO: append to log file
+         ;; Deep merging the authorized branch of the maps tree, and writing to file
+         (reset-in! status auth-path (deep-merge* old-data new-data))
+         (write-status-json!))
+       (log/warn "Not authenticated!")))))
 
 
 (defn update-handler

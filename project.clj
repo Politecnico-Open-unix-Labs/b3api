@@ -9,6 +9,7 @@
                  [me.raynes/fs "1.4.6"]
                  [compojure "1.4.0"]
                  [ring/ring-defaults "0.1.5"]
+                 [com.taoensso/encore "2.27.0"]
                  [http-kit "2.1.18"]]
   :main ^:skip-aot b3api.core
   :plugins [[lein-bin "0.3.5"]]
