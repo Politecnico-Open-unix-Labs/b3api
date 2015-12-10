@@ -1,72 +1,68 @@
 # b3api
 
-Server side implementation of a super-set of the [SpaceAPI](http://spaceapi.net/),
+Server side implementation of a super-set of the
+[SpaceAPI](http://spaceapi.net/),
 keeps the informations about the hackerspace status and send them to the clients.
 
-TODO: better explanation
-
-
-## Details
-
-- Handle websocket connections (TODO: explain fallback when not supprted)
-- Send to each new client the entire json with data
-- If the client is autenticated it can send new informations
-- New values are broadcasted to all the clients
-
-
-## Installation
-
-Download from http://example.com/FIXME.
+Can be also used as server backend for Internet of Things and domotics
+applications.
 
 
 ## Usage
 
-FIXME: explanation
+Run b3api on your server (e.g. `localhost:8080`).
 
-    $ java -jar b3api-0.1.0-standalone.jar [args]
+It stores informations in a dictionary, to get them you can simply use a GET
+request
+```bash
+curl localhost:8080
+```
 
+To send data you can use a POST, but you need a token
+```bash
+curl -H "Content-Type: application/json" -X POST \
+  -d '{"hello":"world","key":<YOUR_TOKEN_HERE>}' http://localhost:8080
+```
 
-## Options
+To generate new tokens run `newkoken.py`.
 
-FIXME: listing of options this app accepts.
-
-
-## Testing
+Tokens can authorize writings on restricted subpath (e.g. `/foo/bar`) of the
+data dictionary, to generate this ones run:
+```bash
+python newtoken.py /foo/bar
+```
 
 
 ### Websockets
 
+You can also use websockets:
 ```python
 from websocket import create_connection
+
 ws = create_connection("ws://localhost:8080")
-ws.send('{"hello":"world", "key":<YOUR_TOKEN_HERE>}')
+
+# receiving
 print(ws.recv())
+
+# sending
+ws.send('{"hello":"world", "key":<YOUR_TOKEN_HERE>}')
+
 ws.close()
 ```
 
+If you keep the socket openened and use callback you will receive a diffential
+update every time a field is changed.
 
-### cURL
+To use websockets in python install `websocket-client`
 ```bash
-curl localhost:8080 # GET
-curl -H "Content-Type: application/json" -X POST \
-  -d '{"hello":"world","key":<YOUR_TOKEN_HERE>}' http://localhost:8080 # POST
-
+pip install websocket-client
 ```
 
-
-### Bugs
-
-...
-
-
-### Any Other Sections
-### That You Think
-### Might be Useful
+For further explainations read
+[the documentation](https://pypi.python.org/pypi/websocket-client/).
 
 
 ## License
 
-Copyright © 2015 FIXME
-
-Distributed under the Gnu Affero General Public License version 3.0 or (at
-your option) any later version.
+Distributed under the Gnu Affero General Public License version 3.0 or (at your
+option) any later version.
