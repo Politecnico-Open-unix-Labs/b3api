@@ -6,7 +6,9 @@
             [me.raynes.fs :as fs]
             [clojure.java.io :as io]
             [ring.middleware.defaults :refer [wrap-defaults api-defaults]]
-            [compojure.core :refer [defroutes GET POST]]
+            [compojure.route :refer [files not-found]]
+            [compojure.handler :refer [site]] ; form, query params decode; cookie; session, etc
+            [compojure.core :refer [defroutes GET POST DELETE ANY context]]
             [taoensso.encore :as enc :refer [if-lets update-in* reset-in!]]
             [cheshire.core :refer [generate-string parse-string]])
   (:gen-class))
@@ -44,6 +46,13 @@
 (timbre/merge-config! {:output-fn (partial timbre/default-output-fn
                                            {:stacktrace-fonts {}})
                        :timestamp-opts {:pattern "yyyy-MM-dd HH:mm:ss"}})
+
+
+(def req-headers
+  { "Access-Control-Allow-Origin" "*"
+    "Access-Control-Allow-Headers" "Content-Type"
+    "Access-Control-Allow-Methods" "GET,POST,OPTIONS"
+    "Content-Type" "application/json; charset=utf-8" })
 
 
 (defn deep-merge*
@@ -133,21 +142,25 @@
           (info "New websocket client. #connected:" (count @channel-list))
           (send! channel big-json false))
         ;; If HTTP just send down the json
-        (send! channel {:status  200
-                        :headers {"Content-Type" "application/json"}
-                        :body    big-json}))
+        (do
+          (info "GET from" (:remote-addr ring-request))
+          (send! channel {:status  200
+                          :headers req-headers
+                          :body    big-json} )))
       (on-receive channel update-status)
       ;; On channel close just remove it from the subscribed channels
-      (on-close channel
-                (fn [status]
-                  (reset! channel-list (remove #(= % channel)
-                                               @channel-list))
-                  (info "Client disconnected. #connected:" (count @channel-list)))))))
+      (on-close
+       channel
+       (fn [status]
+         (when (websocket? channel)
+           (reset! channel-list (remove #(= % channel) @channel-list))
+           (info "Client disconnected. #connected:" (count @channel-list))))))))
 
 
 (defroutes all-routes
   (GET  "/" [] root-handler)     ;; Websocket + GET
-  (POST "/" [] update-handler))  ;; POST for one-time updates or fallback
+  (POST "/" [] update-handler)   ;; POST for one-time updates or fallback
+  (not-found   root-handler))    ;; Because fallback.
 ;; TODO: /hist
 
 
