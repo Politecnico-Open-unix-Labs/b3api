@@ -1,8 +1,8 @@
 (defproject b3api "0.1.0-SNAPSHOT"
-  :description "b3api"
+  :description "A minimal publish-subscribe server."
   :url "https://github.com/Politecnico-Open-unix-Labs/b3api"
-  :license {:name "GNU Affero General Public License"
-            :url "http://www.gnu.org/licenses/agpl-3.0.en.html"}
+  :license {:name "The MIT License"
+            :url "https://opensource.org/licenses/MIT"}
   :dependencies [[org.clojure/clojure "1.7.0"]
                  [org.clojure/tools.logging "0.3.1"]
                  [cheshire "5.5.0"]
