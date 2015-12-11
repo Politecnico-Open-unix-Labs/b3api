@@ -64,5 +64,4 @@ For further explainations read
 
 ## License
 
-Distributed under the Gnu Affero General Public License version 3.0 or (at your
-option) any later version.
+See [LICENSE file](https://github.com/Politecnico-Open-unix-Labs/b3api/blob/master/LICENSE).
