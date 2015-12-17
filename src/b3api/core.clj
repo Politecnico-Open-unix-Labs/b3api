@@ -73,7 +73,7 @@
   [filename]
   (let [f (str fs/*cwd* "/data/" filename ".json")]
     (when (not (fs/exists? f))
-      (spit f ""))
+      (spit f "{}"))
     (-> (slurp f)
         (parse-string true))))
 
@@ -169,6 +169,7 @@
   [& args]
   ;; Read jsons from file
   (info "Reading tokens and status dump from disk...")
+  (when-not (fs/exists? "./data") (fs/mkdir "./data"))
   (reset! status (read-json "status"))
   (reset! tokens (read-json "tokens"))
   (info "Starting server on 8080...")

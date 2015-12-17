@@ -4,9 +4,10 @@ import string
 import random
 import sys
 import re
+import os
 
 
-# `data` is a dictionary token:authorized_path.
+# `tokens.json` is a dictionary token:authorized_path.
 # If a command line argument (in the form of a filesystem path, e.g. `/foo/bar`)
 # is provided, then the new token will be able to edit only that path.
 # Default path is `/` (so all the data.)
@@ -16,17 +17,19 @@ def parse_path(p):
     return re.findall(r"[\w]+", p)
 
 
-filename = "data/tokens.json"
+filename = "./data/tokens.json"
 alphabet = string.ascii_letters + string.digits + "/;<>-_+="
 new_token = "".join([random.choice(alphabet) for n in range(32)])
 
+
+if not os.path.exists("./data"):
+    os.makedirs("./data")
 
 try:
     with open(filename, "r") as f:
         data = json.load(f)
 except:
     data = {}
-
 
 with open(filename, "w") as f:
     if len(sys.argv) > 1:
@@ -35,7 +38,6 @@ with open(filename, "w") as f:
         new_path = []
     data[new_token] = new_path
     json.dump(data, f, indent=4)
-
 
 print("Your new token:", new_token)
 print("Authorized path:", "/" + "/".join(new_path))
