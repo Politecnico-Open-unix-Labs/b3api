@@ -52,7 +52,7 @@
   { "Access-Control-Allow-Origin" "*"
     "Access-Control-Allow-Headers" "Content-Type"
     "Access-Control-Allow-Methods" "GET,POST,OPTIONS"
-    "Content-Type" "application/json; charset=utf-8" })
+    "Content-Type" "application/json; charset=utf-8"})
 
 
 (defn deep-merge*
@@ -146,7 +146,7 @@
           (info "GET from" (:remote-addr ring-request))
           (send! channel {:status  200
                           :headers req-headers
-                          :body    big-json} )))
+                          :body    big-json})))
       (on-receive channel update-status)
       ;; On channel close just remove it from the subscribed channels
       (on-close
@@ -156,13 +156,11 @@
            (reset! channel-list (remove #(= % channel) @channel-list))
            (info "Client disconnected. #connected:" (count @channel-list))))))))
 
-
 (defroutes all-routes
   (GET  "/" [] root-handler)     ;; Websocket + GET
   (POST "/" [] update-handler)   ;; POST for one-time updates or fallback
+  (ANY  "*" [] hist-handler)     ;;
   (not-found   root-handler))    ;; Because fallback.
-;; TODO: /hist
-
 
 (defn -main
   "Load server data, start server."
